@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Sadabahar Trainwala | सफ़र भी... संगीत भी...</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Poppins:wght@300;400;500;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- ===== TOP BAR ===== -->
+  <header class="top-bar">
+    <div class="brand">
+      <h1 class="brand-name">Sadabahar <span>Trainwala</span></h1>
+      <p class="brand-tagline">सफ़र भी... संगीत भी...</p>
+    </div>
+
+    <div class="top-right">
+      <div class="live-clock" id="liveClock">--:--:--</div>
+    </div>
+  </header>
+
+  <!-- ===== ONLINE COUNTER ===== -->
+  <div class="online-wrap">
+    <div class="online-counter" id="onlineCounter">
+      <span class="dot"></span>
+      Live
+    </div>
+  </div>
+
+  <!-- ===== MAIN CONTENT (background sits behind via CSS) ===== -->
+  <main class="stage">
+
+    <!-- ===== MUSIC PLAYER DOCK (compact, front & center) ===== -->
+    <section class="player-dock" id="playerDock">
+
+      <div class="now-playing">
+        <div class="disc" id="discIcon">
+          <img id="discThumb" class="disc-thumb" src="" alt="" style="display:none;">
+          <span id="discEmoji">🎵</span>
+        </div>
+        <div class="track-info">
+          <div class="track-title" id="trackTitle">Loading playlist…</div>
+          <div class="track-sub">Sadabahar Trainwala Radio</div>
+        </div>
+        <button class="playlist-btn" id="playlistToggleBtn" title="Playlist">
+          ☰
+        </button>
+      </div>
+
+      <div class="progress-row">
+        <span class="time-label" id="currentTime">0:00</span>
+        <input type="range" id="seekSlider" min="0" max="100" value="0" class="seek-slider">
+        <span class="time-label" id="durationTime">0:00</span>
+      </div>
+
+      <div class="controls-row">
+        <button class="ctrl-btn" id="shuffleBtn" title="Shuffle">🔀</button>
+        <button class="ctrl-btn" id="prevBtn" title="Previous">⏮</button>
+        <button class="ctrl-btn play-btn" id="playPauseBtn" title="Play/Pause">▶️</button>
+        <button class="ctrl-btn" id="nextBtn" title="Next">⏭</button>
+        <button class="ctrl-btn" id="repeatBtn" title="Repeat">🔁</button>
+      </div>
+
+      <div class="volume-row">
+        <button class="vol-btn" id="muteBtn" title="Mute">🔊</button>
+        <input type="range" id="volumeSlider" min="0" max="100" value="70" class="volume-slider">
+        <span class="vol-value" id="volValue">70%</span>
+      </div>
+    </section>
+
+    <!-- ===== PLAYLIST PANEL (slides out) ===== -->
+    <aside class="playlist-panel" id="playlistPanel">
+      <div class="playlist-header">
+        <h2>Playlist</h2>
+        <button class="close-btn" id="closePlaylistBtn">✕</button>
+      </div>
+      <ul class="playlist-list" id="playlistList">
+        <li class="playlist-loading">Playlist load ho rahi hai…</li>
+      </ul>
+    </aside>
+
+  </main>
+
+  <!-- Hidden YouTube iframe target (audio engine, kept tiny) -->
+  <div id="yt-player-holder"><div id="yt-player"></div></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
