@@ -18,25 +18,44 @@
       <h1 class="brand-name">Sadabahar <span>Trainwala</span></h1>
       <p class="brand-tagline">सफ़र भी... संगीत भी...</p>
     </div>
-
     <div class="top-right">
       <div class="live-clock" id="liveClock">--:--:--</div>
     </div>
   </header>
 
-  <!-- ===== ONLINE COUNTER ===== -->
   <div class="online-wrap">
-    <div class="online-counter" id="onlineCounter">
-      <span class="dot"></span>
-      Live
-    </div>
+    <div class="online-counter"><span class="dot"></span>Live</div>
   </div>
 
-  <!-- ===== MAIN CONTENT (background sits behind via CSS) ===== -->
-  <main class="stage">
+  <!-- ===== SEARCH BAR ===== -->
+  <div class="search-wrap">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Koi bhi song, singer ya movie search karein…">
+      <button id="searchBtn" class="search-btn">Search</button>
+    </div>
+    <p class="api-note" id="apiNote" style="display:none;">
+      Search aur genre sections ke liye <code>script.js</code> me apni free YouTube API key add karein.
+    </p>
+  </div>
 
-    <!-- ===== MUSIC PLAYER DOCK (compact, front & center) ===== -->
-    <section class="player-dock" id="playerDock">
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="content">
+
+    <!-- Search results (hidden until user searches) -->
+    <section class="row-section" id="searchResultsSection" style="display:none;">
+      <h2 class="row-title">🔎 Search Results</h2>
+      <div class="row-scroll" id="searchResultsRow"></div>
+    </section>
+
+    <!-- Dynamic genre carousels render here -->
+    <div id="homeSections"></div>
+
+  </main>
+
+  <!-- ===== STICKY MINI PLAYER (bottom, always visible) ===== -->
+  <section class="mini-player" id="miniPlayer">
+    <div class="mini-player-inner">
 
       <div class="now-playing">
         <div class="disc" id="discIcon">
@@ -44,12 +63,10 @@
           <span id="discEmoji">🎵</span>
         </div>
         <div class="track-info">
-          <div class="track-title" id="trackTitle">Loading playlist…</div>
-          <div class="track-sub">Sadabahar Trainwala Radio</div>
+          <div class="track-title" id="trackTitle">Play dabao aur suno</div>
+          <div class="track-sub" id="trackSub">Sadabahar Trainwala Radio</div>
         </div>
-        <button class="playlist-btn" id="playlistToggleBtn" title="Playlist">
-          ☰
-        </button>
+        <button class="playlist-btn" id="playlistToggleBtn" title="Queue">☰</button>
       </div>
 
       <div class="progress-row">
@@ -71,22 +88,20 @@
         <input type="range" id="volumeSlider" min="0" max="100" value="70" class="volume-slider">
         <span class="vol-value" id="volValue">70%</span>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <!-- ===== PLAYLIST PANEL (slides out) ===== -->
-    <aside class="playlist-panel" id="playlistPanel">
-      <div class="playlist-header">
-        <h2>Playlist</h2>
-        <button class="close-btn" id="closePlaylistBtn">✕</button>
-      </div>
-      <ul class="playlist-list" id="playlistList">
-        <li class="playlist-loading">Playlist load ho rahi hai…</li>
-      </ul>
-    </aside>
+  <!-- ===== QUEUE PANEL (slides out) ===== -->
+  <aside class="playlist-panel" id="playlistPanel">
+    <div class="playlist-header">
+      <h2>Ab Baj Raha Hai (Queue)</h2>
+      <button class="close-btn" id="closePlaylistBtn">✕</button>
+    </div>
+    <ul class="playlist-list" id="playlistList">
+      <li class="playlist-loading">Kuch bhi play karke shuru karein…</li>
+    </ul>
+  </aside>
 
-  </main>
-
-  <!-- Hidden YouTube iframe target (audio engine, kept tiny) -->
   <div id="yt-player-holder"><div id="yt-player"></div></div>
 
   <script src="script.js"></script>
