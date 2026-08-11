@@ -12,6 +12,8 @@
 </head>
 <body>
 
+  <div class="bg-fixed"></div>
+
   <!-- ===== TOP BAR ===== -->
   <header class="top-bar">
     <div class="brand">
@@ -55,9 +57,10 @@
 
   <!-- ===== STICKY MINI PLAYER (bottom, always visible) ===== -->
   <section class="mini-player" id="miniPlayer">
+    <button class="collapse-btn" id="collapseBtn" title="Close">✕</button>
     <div class="mini-player-inner">
 
-      <div class="now-playing">
+      <div class="now-playing now-playing-clickable" id="nowPlayingArea">
         <div class="disc" id="discIcon">
           <img id="discThumb" class="disc-thumb" src="" alt="" style="display:none;">
           <span id="discEmoji">🎵</span>
@@ -97,10 +100,22 @@
       <h2>Ab Baj Raha Hai (Queue)</h2>
       <button class="close-btn" id="closePlaylistBtn">✕</button>
     </div>
+    <div class="autoplay-row">
+      <span>Autoplay agla song</span>
+      <button class="autoplay-toggle on" id="autoplayToggle">ON</button>
+    </div>
     <ul class="playlist-list" id="playlistList">
       <li class="playlist-loading">Kuch bhi play karke shuru karein…</li>
     </ul>
   </aside>
+
+  <!-- ===== NOW PLAYING FULLSCREEN OVERLAY ===== -->
+  <div class="now-playing-overlay" id="nowPlayingOverlay">
+    <button class="np-close" id="npCloseBtn">✕</button>
+    <img class="np-art" id="npArt" src="" alt="">
+    <div class="np-title" id="npTitle">Play dabao aur suno</div>
+    <div class="np-sub" id="npSub">Sadabahar Trainwala Radio</div>
+  </div>
 
   <div id="yt-player-holder"><div id="yt-player"></div></div>
 

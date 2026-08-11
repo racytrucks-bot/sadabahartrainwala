@@ -3,14 +3,9 @@
    ========================================================= */
 
 // ---- CONFIG ----
-// 1) Apni free YouTube Data API key yahan daalein (Google Cloud Console se milti hai)
-const YOUTUBE_API_KEY = "AIzaSyCZMB4rKYbNfvWkmWdryNmBxmd_05xZvXk"; // e.g. "AIzaSy...................."
-
-// 2) Original radio playlist (jo pehle se chal rahi thi — bina API key ke bhi kaam karti hai)
+const YOUTUBE_API_KEY = "AIzaSyCZMB4rKYbNfvWkmWdryNmBxmd_05xZvXk";
 const RADIO_PLAYLIST_ID = "RDKsiaTD9zGAo";
 
-// 3) Genre/mood sections — har ek ek public YouTube playlist se aati hai.
-//    Chahen to yahan apni pasand ki playlists ke ID daal kar badal sakte hain.
 const HOME_SECTIONS = [
   { title: "🎬 Bollywood Hits",      playlistId: "PLQuhmPrDkg2mFasfx65sBLfW-XRi4_CXr" },
   { title: "🎧 Punjabi Hits",        playlistId: "PLNCA1T91UH31M7mN8iKSxMwwWB_mkzwT6" },
@@ -35,9 +30,13 @@ let isMuted = false;
 let seekBarInterval = null;
 let isSeeking = false;
 
-let currentQueue = [];   // [{videoId, title, thumbnail}]
+let currentQueue = [];
 let currentIndex = -1;
-let usingRadioFallback = false; // true if playing the original YT-native playlist (no API key case)
+let usingRadioFallback = false;
+let queueIsSearchBased = false; // true when current queue came from a search (used for auto-recommend)
+let autoplayRecommend = localStorage.getItem('sbtw_autoplay') !== 'off'; // default ON
+
+const MY_PLAYLIST_KEY = 'sbtw_my_playlist';
 
 /* =========================================================
    DOM
@@ -64,6 +63,7 @@ const playlistToggleBtn = document.getElementById('playlistToggleBtn');
 const closePlaylistBtn = document.getElementById('closePlaylistBtn');
 const playlistPanel = document.getElementById('playlistPanel');
 const playlistList = document.getElementById('playlistList');
+const autoplayToggle = document.getElementById('autoplayToggle');
 
 const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
@@ -71,6 +71,13 @@ const searchResultsSection = document.getElementById('searchResultsSection');
 const searchResultsRow = document.getElementById('searchResultsRow');
 const homeSections = document.getElementById('homeSections');
 const apiNote = document.getElementById('apiNote');
+
+const nowPlayingArea = document.getElementById('nowPlayingArea');
+const nowPlayingOverlay = document.getElementById('nowPlayingOverlay');
+const npCloseBtn = document.getElementById('npCloseBtn');
+const npArt = document.getElementById('npArt');
+const npTitle = document.getElementById('npTitle');
+const npSub = document.getElementById('npSub');
 
 /* =========================================================
    1. YOUTUBE IFRAME API
@@ -92,6 +99,7 @@ function onPlayerReady(e) {
   playerReady = true;
   e.target.setVolume(volumeSlider.value);
   buildHomeSections();
+  renderMyPlaylistSection();
 }
 
 function onPlayerStateChange(e) {
@@ -117,43 +125,75 @@ function updatePlayIcon() {
 }
 
 /* =========================================================
-   2. QUEUE-BASED PLAYBACK (works for search results + carousels)
+   2. QUEUE-BASED PLAYBACK
    ========================================================= */
-function playQueueAt(queue, index) {
+function playQueueAt(queue, index, isSearchBased) {
   if (!playerReady || !queue || !queue[index]) return;
   usingRadioFallback = false;
   currentQueue = queue;
   currentIndex = index;
+  queueIsSearchBased = !!isSearchBased;
   const track = queue[index];
   player.loadVideoById(track.videoId);
   trackTitle.textContent = track.title;
   trackTitle.title = track.title;
   trackSub.textContent = "Sadabahar Trainwala";
-  if (track.thumbnail) {
-    discThumb.src = track.thumbnail;
+  updateNowPlayingArt(track.thumbnail);
+  renderQueuePanel();
+  updateOverlay(track);
+}
+
+function updateNowPlayingArt(thumbnail) {
+  if (thumbnail) {
+    discThumb.src = thumbnail;
     discThumb.style.display = "block";
     discEmoji.style.display = "none";
   }
-  renderQueuePanel();
 }
 
-function handleTrackEnded() {
-  if (usingRadioFallback) return; // YT playlist handles its own advance via nextVideo etc.
-  if (isRepeat) {
-    player.seekTo(0, true);
-    player.playVideo();
-    return;
-  }
+function updateOverlay(track) {
+  npArt.src = track.thumbnail || "";
+  npTitle.textContent = track.title || "";
+  npSub.textContent = "Sadabahar Trainwala";
+}
+
+async function handleTrackEnded() {
+  if (usingRadioFallback) return; // native YT radio playlist auto-advances itself
+  if (isRepeat) { player.seekTo(0, true); player.playVideo(); return; }
+
   if (currentQueue.length === 0) return;
+
   let nextIdx;
   if (isShuffle) {
     nextIdx = Math.floor(Math.random() * currentQueue.length);
   } else {
     nextIdx = currentIndex + 1;
-    if (nextIdx >= currentQueue.length) return; // end of queue
   }
-  playQueueAt(currentQueue, nextIdx);
-  player.playVideo();
+
+  if (nextIdx < currentQueue.length && !isShuffle) {
+    playQueueAt(currentQueue, nextIdx, queueIsSearchBased);
+    player.playVideo();
+    return;
+  }
+  if (isShuffle) {
+    playQueueAt(currentQueue, nextIdx, queueIsSearchBased);
+    player.playVideo();
+    return;
+  }
+
+  // Queue exhausted — auto-recommend similar songs if enabled
+  if (autoplayRecommend) {
+    const lastTrack = currentQueue[currentQueue.length - 1];
+    try {
+      const more = await searchYouTube(lastTrack.title.split(' ').slice(0, 3).join(' '), 8);
+      const filtered = more.filter(t => !currentQueue.some(q => q.videoId === t.videoId));
+      if (filtered.length > 0) {
+        currentQueue = currentQueue.concat(filtered);
+        playQueueAt(currentQueue, currentIndex + 1, true);
+        player.playVideo();
+      }
+    } catch (err) { /* silently stop if recommend fails */ }
+  }
 }
 
 /* =========================================================
@@ -161,15 +201,8 @@ function handleTrackEnded() {
    ========================================================= */
 playPauseBtn.addEventListener('click', () => {
   if (!playerReady) return;
-  if (usingRadioFallback) {
-    isPlaying ? player.pauseVideo() : player.playVideo();
-    return;
-  }
-  if (currentIndex === -1) {
-    // nothing loaded yet — start the radio fallback playlist by default
-    startRadioFallback();
-    return;
-  }
+  if (usingRadioFallback) { isPlaying ? player.pauseVideo() : player.playVideo(); return; }
+  if (currentIndex === -1) { startRadioFallback(); return; }
   isPlaying ? player.pauseVideo() : player.playVideo();
 });
 
@@ -178,7 +211,7 @@ nextBtn.addEventListener('click', () => {
   if (currentQueue.length === 0) return;
   let nextIdx = isShuffle ? Math.floor(Math.random() * currentQueue.length) : currentIndex + 1;
   if (nextIdx >= currentQueue.length) nextIdx = 0;
-  playQueueAt(currentQueue, nextIdx);
+  playQueueAt(currentQueue, nextIdx, queueIsSearchBased);
   player.playVideo();
 });
 
@@ -187,7 +220,7 @@ prevBtn.addEventListener('click', () => {
   if (currentQueue.length === 0) return;
   let prevIdx = currentIndex - 1;
   if (prevIdx < 0) prevIdx = currentQueue.length - 1;
-  playQueueAt(currentQueue, prevIdx);
+  playQueueAt(currentQueue, prevIdx, queueIsSearchBased);
   player.playVideo();
 });
 
@@ -263,9 +296,9 @@ function updateRadioNowPlaying() {
       trackTitle.textContent = data.title;
       trackTitle.title = data.title;
       if (data.video_id) {
-        discThumb.src = `https://img.youtube.com/vi/${data.video_id}/hqdefault.jpg`;
-        discThumb.style.display = "block";
-        discEmoji.style.display = "none";
+        const thumb = `https://img.youtube.com/vi/${data.video_id}/hqdefault.jpg`;
+        updateNowPlayingArt(thumb);
+        updateOverlay({ title: data.title, thumbnail: thumb });
       }
     }
   } catch (err) {}
@@ -287,10 +320,24 @@ seekSlider.addEventListener('change', () => {
 });
 
 /* =========================================================
-   6. QUEUE PANEL
+   6. QUEUE PANEL + AUTOPLAY TOGGLE
    ========================================================= */
-playlistToggleBtn.addEventListener('click', () => playlistPanel.classList.add('open'));
+playlistToggleBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  playlistPanel.classList.add('open');
+});
 closePlaylistBtn.addEventListener('click', () => playlistPanel.classList.remove('open'));
+
+if (autoplayToggle) {
+  autoplayToggle.textContent = autoplayRecommend ? "ON" : "OFF";
+  autoplayToggle.classList.toggle('on', autoplayRecommend);
+  autoplayToggle.addEventListener('click', () => {
+    autoplayRecommend = !autoplayRecommend;
+    localStorage.setItem('sbtw_autoplay', autoplayRecommend ? 'on' : 'off');
+    autoplayToggle.textContent = autoplayRecommend ? "ON" : "OFF";
+    autoplayToggle.classList.toggle('on', autoplayRecommend);
+  });
+}
 
 function renderQueuePanel() {
   if (currentQueue.length === 0) {
@@ -302,13 +349,63 @@ function renderQueuePanel() {
     const li = document.createElement('li');
     li.className = index === currentIndex ? "playing" : "";
     li.innerHTML = `<img src="${track.thumbnail}" alt=""><span>${index + 1}. ${track.title}</span>`;
-    li.addEventListener('click', () => { playQueueAt(currentQueue, index); player.playVideo(); playlistPanel.classList.remove('open'); });
+    li.addEventListener('click', () => { playQueueAt(currentQueue, index, queueIsSearchBased); player.playVideo(); playlistPanel.classList.remove('open'); });
     playlistList.appendChild(li);
   });
 }
 
 /* =========================================================
-   7. YOUTUBE DATA API — SEARCH + HOME SECTIONS
+   7. NOW PLAYING FULLSCREEN OVERLAY
+   ========================================================= */
+nowPlayingArea.addEventListener('click', (e) => {
+  if (e.target.closest('#playlistToggleBtn')) return;
+  nowPlayingOverlay.classList.add('open');
+});
+npCloseBtn.addEventListener('click', () => nowPlayingOverlay.classList.remove('open'));
+
+/* =========================================================
+   8. MY PLAYLIST (user-created, saved in this browser)
+   ========================================================= */
+function getMyPlaylist() {
+  try { return JSON.parse(localStorage.getItem(MY_PLAYLIST_KEY)) || []; }
+  catch (err) { return []; }
+}
+function saveMyPlaylist(list) {
+  localStorage.setItem(MY_PLAYLIST_KEY, JSON.stringify(list));
+}
+function isInMyPlaylist(videoId) {
+  return getMyPlaylist().some(t => t.videoId === videoId);
+}
+function toggleMyPlaylist(track) {
+  let list = getMyPlaylist();
+  if (list.some(t => t.videoId === track.videoId)) {
+    list = list.filter(t => t.videoId !== track.videoId);
+  } else {
+    list.push(track);
+  }
+  saveMyPlaylist(list);
+  renderMyPlaylistSection();
+}
+
+function renderMyPlaylistSection() {
+  let section = document.getElementById('myPlaylistSection');
+  const list = getMyPlaylist();
+  if (!section) {
+    section = document.createElement('section');
+    section.className = "row-section";
+    section.id = "myPlaylistSection";
+    homeSections.parentNode.insertBefore(section, homeSections);
+  }
+  if (list.length === 0) {
+    section.innerHTML = "";
+    return;
+  }
+  section.innerHTML = `<h2 class="row-title">💜 Meri Playlist</h2><div class="row-scroll" id="myPlaylistRow"></div>`;
+  renderRow(document.getElementById('myPlaylistRow'), list, true);
+}
+
+/* =========================================================
+   9. YOUTUBE DATA API — SEARCH + HOME SECTIONS
    ========================================================= */
 function apiKeyMissing() {
   return !YOUTUBE_API_KEY || YOUTUBE_API_KEY.trim() === "";
@@ -340,7 +437,7 @@ async function searchYouTube(query, maxResults = 12) {
   }));
 }
 
-function renderRow(container, items) {
+function renderRow(container, items, isSearchBased) {
   container.innerHTML = "";
   if (items.length === 0) {
     container.innerHTML = `<div class="row-empty">Kuch nahi mila.</div>`;
@@ -349,8 +446,19 @@ function renderRow(container, items) {
   items.forEach((track, index) => {
     const card = document.createElement('div');
     card.className = "song-card";
-    card.innerHTML = `<img src="${track.thumbnail}" alt=""><div class="song-title">${track.title}</div>`;
-    card.addEventListener('click', () => { playQueueAt(items, index); player.playVideo(); });
+    const added = isInMyPlaylist(track.videoId);
+    card.innerHTML = `
+      <div class="thumb-wrap">
+        <img src="${track.thumbnail}" alt="">
+        <button class="add-btn ${added ? 'added' : ''}" title="Meri Playlist me add karein">${added ? '✓' : '+'}</button>
+      </div>
+      <div class="song-title">${track.title}</div>`;
+    card.querySelector('.add-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleMyPlaylist(track);
+      renderRow(container, items, isSearchBased); // refresh add-button states in this row
+    });
+    card.addEventListener('click', () => { playQueueAt(items, index, isSearchBased); player.playVideo(); });
     container.appendChild(card);
   });
 }
@@ -361,6 +469,7 @@ async function buildHomeSections() {
     homeSections.innerHTML = `<p class="row-empty" style="padding:0 20px;">Filhal sirf "Sadabahar Trainwala Radio" available hai — neeche ▶️ Play button dabayein.</p>`;
     return;
   }
+  homeSections.innerHTML = "";
   for (const section of HOME_SECTIONS) {
     const sectionEl = document.createElement('section');
     sectionEl.className = "row-section";
@@ -369,7 +478,7 @@ async function buildHomeSections() {
 
     try {
       const items = await fetchPlaylistItems(section.playlistId);
-      renderRow(document.getElementById(`row-${section.playlistId}`), items);
+      renderRow(document.getElementById(`row-${section.playlistId}`), items, false);
     } catch (err) {
       document.getElementById(`row-${section.playlistId}`).innerHTML = `<div class="row-empty">Load nahi ho paya.</div>`;
     }
@@ -379,16 +488,13 @@ async function buildHomeSections() {
 async function runSearch() {
   const query = searchInput.value.trim();
   if (!query) return;
-  if (apiKeyMissing()) {
-    apiNote.style.display = "block";
-    return;
-  }
+  if (apiKeyMissing()) { apiNote.style.display = "block"; return; }
   searchResultsSection.style.display = "block";
   searchResultsRow.innerHTML = `<div class="row-loading">Search ho raha hai…</div>`;
   window.scrollTo({ top: 0, behavior: 'smooth' });
   try {
     const items = await searchYouTube(query);
-    renderRow(searchResultsRow, items);
+    renderRow(searchResultsRow, items, true);
   } catch (err) {
     searchResultsRow.innerHTML = `<div class="row-empty">Search fail ho gayi. Dobara try karein.</div>`;
   }
@@ -398,7 +504,7 @@ searchBtn.addEventListener('click', runSearch);
 searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') runSearch(); });
 
 /* =========================================================
-   8. LIVE CLOCK
+   10. LIVE CLOCK
    ========================================================= */
 function updateClock() {
   const now = new Date();
